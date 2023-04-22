@@ -1,42 +1,10 @@
 const Schema = require("../Schemas/documentoSchema");
 const InfoLocal = require("../Schemas/infoLocales");
 
-// async function agregarDocDb(documento) {
-//   try {
-//     console.log("Entity --> empieza logica de comprobar si existe documento");
-//     const docExiste = await Schema.findOne(
-//       { numero_pedido: documento.test},
-//     );
-//     console.log("Entity -->docExiste ", docExiste);
 
-//     if (docExiste) {
-//       console.log("Entity --> Doc existe");
-//       let docExiste = {
-//         data: [],
-//         tipo: "1",
-//         mensaje: "Documento ya existe",
-//       };
-//       return docExiste;
-//     } else {
-//       console.log("Entity --> Nuevo doc creado");
-
-//       const nuevoDocumento = new Schema(documento);
-//       nuevoDocumento.save();
-//       let docNuevo = {
-//         data: nuevoDocumento,
-//         tipo: "1",
-//         mensaje: "Documento fue almacenado con éxito y enviado al proveedor",
-//       };
-//       return docNuevo;
-//     }
-//   } catch (error) {
-//     return error;
-//   }
-// }
-
+// Crear documento de rappi o pedidosYa
 async function agregarDocDb(obj) {
   try {
-
     const documento = new Schema(obj)
     console.log("entity --> documento" , obj)
     documento.save()
@@ -48,23 +16,27 @@ async function agregarDocDb(obj) {
 }
 
 
+// Actualiza el estado  de la recepcion de los pedidos(rappi o pedidosYa)
 
 async function actualizarDocDb(respuestaProveeedor , documento) {
   try {
-    console.log("Entity actualizarDocDb --> Inicio actualizar Documento",documento);
-    let estado = documento.estado
+    console.log("Entity actualizarDocDb --> Inicio actualizar Documento",respuestaProveeedor);
+    let estadoRespuesta = documento.estado
     if(respuestaProveeedor.remoteResponse && respuestaProveeedor.remoteResponse.delivery.tipo == '1') {
-        estado = '1'
-    } 
+      estadoRespuesta = '1'
+    } else if(respuestaProveeedor.tipo == '1') {
+      estadoRespuesta = '1'
+    }
     const documentoEncontradoyActualizado = await Schema.findByIdAndUpdate(
       { _id: documento._id },
       {
-        estado: estado,
+        estado: estadoRespuesta,
         json_respuesta : respuestaProveeedor,
         intentos: ++documento.intentos
       },
       { new: true }
     );
+
     return documentoEncontradoyActualizado;
   } catch (error) {
     console.error(
@@ -74,12 +46,14 @@ async function actualizarDocDb(respuestaProveeedor , documento) {
   }
 }
 
+// Para consultar todos los documentos con estado 3 de PedidosYa
+
 async function consultarDocsSinResDb() {
   try{
     const docsSinRespuesta = await Schema.find({
       estado: '3',
       intentos: { $lte: 3 },
-      integracion: 'PY' || 'pedidosya'
+      integracion: 'pedidosya'
     }).limit(100).exec()
     console.log(
       "Entity  --> docsSinRespuesta",
@@ -92,27 +66,46 @@ async function consultarDocsSinResDb() {
   }
 }
 
-async function consultarDocsSinResDbRappi() {
-  const fechaLimite = new Date(Date.now() - 1.5 * 60 * 1000); 
-  console.log("Entity  --> fechaLimite", fechaLimite)
-  try{
-    const docsSinRespuesta = await Schema.find({
-      estado: '3',
-      intentos: { $lte: 3 },
-      integracion: 'Rappi',
-      fecha_envio: { $lt: fechaLimite }
-    }).limit(100).exec()
 
-    return docsSinRespuesta
+// Para consultar todas las ordenes de Rappi que no han sido confirmadas
+
+async function ordenesNoConfirmadasRappiDb(datosOrdenUnica) {
+
+
+  const fechaLimite = new Date(Date.now() - 1.5 * 60 * 1000); 
+  try{
+    let ordenSinConfirmar = ""
+    if(!datosOrdenUnica) {
+       ordenSinConfirmar = await Schema.find({
+        estadoConfirmacion: '3',
+        intentos: { $lt: 3 },
+        integracion: 'Rappi',
+        fecha_envio: { $lt: fechaLimite }
+      }).limit(100).exec()
+    } else {
+       ordenSinConfirmar = await Schema.find({
+        estadoConfirmacion: '3',
+        intentos: { $lt: 3 },
+        storeId: datosOrdenUnica.storeId,
+        suscripcion: datosOrdenUnica.suscripcion,
+        "json_integracion.orderdetail.order_id": datosOrdenUnica.orderId,
+      })
+    }
+
+
+    return ordenSinConfirmar
   }
   catch(error) {
     return error
   }
 }
 
+
+// Actualizar el estado de la orden de Rappi  (Crone)
+
 async function actualizarEstadOrdenRappi(respuestaProveeedor , documento) {
   try {
-    console.log("Entity actualizarDocDb --> Inicio actualizar Documento",documento);
+    console.log("Entity actualizarEstadOrdenRappi --> Inicio actualizar Documento",documento);
     let estadoConfirmacion = documento.estadoConfirmacion
     if(respuestaProveeedor.tipo && respuestaProveeedor.tipo == '1') {
         estadoConfirmacion = '1'
@@ -121,18 +114,23 @@ async function actualizarEstadOrdenRappi(respuestaProveeedor , documento) {
       { _id: documento._id },
       {
         estadoConfirmacion: estadoConfirmacion,
-        intentos: ++documento.intentos
+        intentos: ++documento.intentos,
+        $push: {
+          ordenRptaRappi: { mensaje: respuestaProveeedor.mensaje[0] , fecha_creacion: new Date(), },
+        },
       },
       { new: true }
     );
     return documentoEncontradoyActualizado;
   } catch (error) {
     console.error(
-      `Error en la función actualizarEstadOrdenRappi: ${error.message}`
+      `Error en la función actualizarOrdenRappi: ${error.message}`
     );
     return error;
   }
 }
+
+// Encontrar infoLocal por StoreId
 
 async function consultarDocInfoLocalDb(storeIdBuscado){
   console.log("Entity --> empieza logica buscarinfolocal" , storeIdBuscado);
@@ -149,6 +147,8 @@ async function consultarDocInfoLocalDb(storeIdBuscado){
     return error
   }
 }
+
+// Crear o actualizar integracion(infoLocal)
 
 async function crearIntegracionDb(datos) {
   console.log("Entity --> crearIntegracionDb");
@@ -208,6 +208,6 @@ module.exports = {
   consultarDocsSinResDb,
   consultarDocInfoLocalDb,
   crearIntegracionDb,
-  consultarDocsSinResDbRappi,
+  ordenesNoConfirmadasRappiDb,
   actualizarEstadOrdenRappi
 };

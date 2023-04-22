@@ -6,7 +6,7 @@ const infoLocalesSchema = new Schema({
   integracion: { type: String }, //rappi o pedidos ya
   localId:  { type: Number },
   suscripcion:  { type: String },
-  minutos_aceptacion: { type: String },
+  minutos_preparacion: { type: String },
   clave_publica: { type: String },
   clave_privada: { type: String },
   audience: { type: String },

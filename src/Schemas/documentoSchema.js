@@ -12,6 +12,12 @@ const documentoSchema = new Schema({
   estado:{type:String},
   intentos: {type:String},
   estadoConfirmacion: {type:String},
+  ordenRptaRappi: [
+    {
+      mensaje: { type: String },
+      fecha_creacion: { type: Date, default: Date.now },
+    },
+  ]
 }, { strict: false });
 
 module.exports = mongoose.model("Documento", documentoSchema);

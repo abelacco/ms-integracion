@@ -1,4 +1,4 @@
-const { agregarDocDb, actualizarDocDb, consultarDocsSinResDb, consultarDocInfoLocalDb, crearIntegracionDb, consultarDocsSinResDbRappi, actualizarEstadOrdenRappi } = require("../Entity/documentoEntity");
+const { agregarDocDb, actualizarDocDb, consultarDocsSinResDb, consultarDocInfoLocalDb, crearIntegracionDb, ordenesNoConfirmadasRappiDb, actualizarEstadOrdenRappi } = require("../Entity/documentoEntity");
 const { enviarDocRappi } = require("../proveedores/enviarDoc");
 const { obtenerStoreId } = require("../proveedores/proveedoresLogica");
 
@@ -57,10 +57,10 @@ async function docsEstadoSinRes() {
   }
 }
 
-async function docsEstadoSinResRappi() {
+async function ordenesNoConfirmadasRappi(datosOrdenUnica) {
   try {
-    console.log("Model --> docsEstadoSinRes")
-    const docsNoActualizados = await consultarDocsSinResDbRappi();
+    console.log("Model --> ordenesNoConfirmadasRappi")
+    const docsNoActualizados = await ordenesNoConfirmadasRappiDb(datosOrdenUnica);
     return docsNoActualizados;
   } catch (error) {
     return error;
@@ -125,6 +125,6 @@ module.exports = {
   buscarDatosLocal,
   generarDoc,
   crearIntegracion,
-  docsEstadoSinResRappi,
+  ordenesNoConfirmadasRappi,
   actualizarDocCroneRappi
 };

@@ -7,10 +7,10 @@ async function enviarDocProveedor(documento, infoLocal, proveedor) {
 
     proveedor == 'pedidosya' ? proveedor = 'PedidosYa' : ""
     const objJSON = documento.json_integracion || null;
-
+  console.log(objJSON)
     
     let url = `https://${infoLocal.suscripcion}/restaurant/clientes/rest/integracion_write/newOrder${proveedor}`
-    console.log("PedidosYaLogica --> url", url);
+    console.log("enviarDocProveedor --> url", url);
     try {
       const respuestaProveedor = await axios
         .post(url, objJSON, {
@@ -20,18 +20,18 @@ async function enviarDocProveedor(documento, infoLocal, proveedor) {
   
         })
         .then((respuesta) => {
-          console.log("PedidosYa --> respuestaPositiva", respuesta.data);
+          console.log("enviarDocProveedor --> respuestaPositiva", respuesta.data);
           return respuesta.data;
         })
         .catch((error) => {
-          console.log("PedidosYa --> respuestaError", error);
   
-          let respuesta = {
-            data: [],
-            tipo: "3",
-            mensaje: error,
-          };
-          return respuesta;
+          // let respuesta = {
+          //   data: [],
+          //   tipo: error.response.data.tipo,
+          //   mensaje: error.response.data.mensajes,
+          // };
+
+          return error.response.data;
         });
       return respuestaProveedor;
     } catch (error) {
@@ -40,20 +40,31 @@ async function enviarDocProveedor(documento, infoLocal, proveedor) {
     }
 }
 
-async function confirmarOrdenRappi(documento, infoLocal) {
+async function confirmarOrdenRappi(documento, infoLocal , minutosPreparacion) {
+
+  let tipo = '3'
+  let data = []
+  let mensajes = []
+  let tiempoPreparacion = infoLocal.minutos_preparacion
+
+  // Cuando se confirma orden única
+  if(minutosPreparacion){
+    tiempoPreparacion = minutosPreparacion
+  }   
 
   const tokenInfo = await proveedorService.getToken(infoLocal)
 
   const token_type = tokenInfo.token_type
-  console.log("tokenInfo" ,token_type)
 
   const access_token = tokenInfo.access_token
-  console.log("tokenInfo" ,access_token)
-
+  console.log(access_token)
   const dominio = proveedorService.getDomain(infoLocal)
   const order_id = documento.json_integracion.order_detail.order_id;
 
-  let url = `https://${dominio}/api/v2/restaurants-integrations-public-api/orders/${order_id}/take/${infoLocal.minutos_aceptacion}`
+
+
+
+  let url = `https://${dominio}/api/v2/restaurants-integrations-public-api/orders/${order_id}/take/${tiempoPreparacion}`
   console.log(url)
   try {
     const response = await axios.put(url, null, {
@@ -62,14 +73,18 @@ async function confirmarOrdenRappi(documento, infoLocal) {
         'x-authorization': `${token_type} ${access_token}`,
       },
     });
-
+    console.log("confirmarOrdenRappi --> response", response);
     if (response.status !== 200) {
+
       const responseJSON = response.data;
       if (responseJSON && responseJSON.message && responseJSON.message.includes("{TAKEN} to {TAKEN}")) {
+        tipo = '1'
         mensajes.push("El pedido ya ha sido aceptado en Rappi");
       } else if (responseJSON && responseJSON.message) {
+        tipo = '3'
         mensajes.push(responseJSON.message);
       } else {
+        tipo = '3'
         const mensaje = `No se pudo aceptar la orden en Rappi. Respuesta codigo ${response.status}`;
         if (responseJSON && responseJSON.message) {
           mensaje += `${responseJSON.message}`;
@@ -77,49 +92,27 @@ async function confirmarOrdenRappi(documento, infoLocal) {
         mensajes.push(mensaje);
       }
     } else {
-      mensajes.push(`Tú Rappi pedido #${orderId} fue confirmado`);
+      tipo = '1'
+      mensajes.push(`Tú Rappi pedido #${order_id} fue confirmado`);
     }
-  } catch (e) {
+
+
+  } catch (error) {
     console.log("Error al confirmar orden en Rappi");
-    let respuesta = {
-      data: [],
-      tipo: "3",
-      mensaje: e,
-    }
-    return respuesta
-    // console.error(e);
-    // You can send the error to a reporting service if needed
-    // sendErrorEntity(e);
+    tipo = '3'
+    mensajes.push("Error al confirmar orden en Rappi");
+
   }
-  // try {
-  //   const respuestaProveedor = await axios
-  //     .put(url, {
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //         // pasar token
-  //       },
 
-  //     })
-  //     .then((respuesta) => {
-  //       console.log("croneRappiController --> respuestaPositiva");
-  //       return respuesta.data;
-  //     })
-  //     .catch((error) => {
-  //       console.log("croneRappiController --> respuestaError");
+  let respuesta = {
+    data: data,
+    tipo: tipo,
+    mensaje: mensajes,
+  }
 
-  //       let respuesta = {
-  //         data: [],
-  //         tipo: "3",
-  //         mensaje: error,
-  //       };
-  //       return respuesta;
-  //     });
-  //   console.log(respuestaProveedor)
-  //   return respuestaProveedor;
-  // } catch (error) {
-  //   console.error(`Error en la función croneRappi: ${error.message}`);
-  //   throw error;
-  // }
+
+  return respuesta
+
 }
   
   module.exports = {
